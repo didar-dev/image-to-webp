@@ -1,19 +1,21 @@
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
+const signale = require("signale");
 
 const inputFolder = "./images";
 const outputFolder = "./result";
 
 let totalImages = 0;
 let imagesProcessed = 0;
+let errors = [];
 const startTime = new Date();
 
 // Function to recursively process the folder structure
 function convertImagesToWebP(folderPath) {
   fs.readdir(folderPath, (err, files) => {
     if (err) {
-      console.error(`Error reading folder: ${folderPath}`, err);
+      signale.error(`Error reading folder: ${folderPath}`, err);
       return;
     }
 
@@ -21,12 +23,11 @@ function convertImagesToWebP(folderPath) {
       const filePath = path.join(folderPath, file);
       fs.stat(filePath, (err, stats) => {
         if (err) {
-          console.error(`Error retrieving file stats: ${filePath}`, err);
+          signale.error(`Error retrieving file stats: ${filePath}`, err);
           return;
         }
 
         if (stats.isDirectory()) {
-          // If it's a directory, recursively process it
           const outputSubfolder = path.join(
             outputFolder,
             path.relative(inputFolder, folderPath),
@@ -44,21 +45,27 @@ function convertImagesToWebP(folderPath) {
           sharp(filePath)
             .webp()
             .toFile(outputFilePath, (err, info) => {
+              imagesProcessed++;
+              updateProgress();
               if (err) {
-                console.error(
-                  `Error converting image to WebP: ${filePath}`,
-                  err
+                errors.push(
+                  `Error converting image to WebP: ${filePath} \n ${err}`
                 );
                 return;
               }
-              imagesProcessed++;
-              console.log(`Converted image: ${imagesProcessed}`);
               if (imagesProcessed === totalImages) {
+                console.log();
                 const endTime = new Date();
                 const elapsedTime = (endTime - startTime) / 1000; // in seconds
-                console.log(`\nConversion completed successfully!`);
-                console.log(`Total Images Processed: ${totalImages}`);
-                console.log(`Time Taken: ${elapsedTime.toFixed(2)} seconds`);
+                signale.success(
+                  `Converted ${totalImages} images to WebP in ${elapsedTime} seconds.`
+                );
+
+                if (errors.length > 0) {
+                  signale.warn(
+                    `There were ${errors.length} errors while converting images to WebP`
+                  );
+                }
               }
             });
         }
@@ -67,8 +74,25 @@ function convertImagesToWebP(folderPath) {
   });
 }
 
+// Update the progress line
+function updateProgress() {
+  /// in the end delete this line
+  const progress = Math.floor((imagesProcessed / totalImages) * 100);
+  if (progress === 100) {
+    process.stdout.clearLine();
+    return;
+  }
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
+  process.stdout.write(`Progress: ${progress}%`);
+}
+
 // Start the conversion process
 function startConversion() {
+  // clear the console
+
+  process.stdout.write("\x1B[2J\x1B[0f");
+  signale.start(`Converting images to WebP...`);
   convertImagesToWebP(inputFolder);
 }
 
